@@ -1,0 +1,14 @@
+# Android SDK 路径配置
+# 请根据您的实际 Android SDK 安装路径修改此文件
+
+# macOS 默认路径（如果使用 Android Studio 安装）
+sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk
+
+# 或者使用环境变量
+# sdk.dir=${ANDROID_HOME}
+
+# Windows 示例
+# sdk.dir=C\:\\Users\\YOUR_USERNAME\\AppData\\Local\\Android\\Sdk
+
+# Linux 示例
+# sdk.dir=/home/YOUR_USERNAME/Android/Sdk
