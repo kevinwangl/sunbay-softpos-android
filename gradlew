@@ -3,7 +3,6 @@
 ##############################################################################
 # Gradle start up script for POSIX
 ##############################################################################
-export JAVA_HOME="/opt/homebrew/opt/openjdk@17":
 # Attempt to set APP_HOME
 # Resolve links: $0 may be a link
 app_path=$0
