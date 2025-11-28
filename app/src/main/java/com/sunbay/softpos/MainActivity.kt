@@ -1,29 +1,43 @@
 package com.sunbay.softpos
-import android.util.Log
+
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,17 +51,22 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sunbay.softpos.data.ApiLog
 import com.sunbay.softpos.data.DeviceManager
 import com.sunbay.softpos.data.ThreatReporter
+import com.sunbay.softpos.data.TransactionTokenManager
+import com.sunbay.softpos.ui.screens.DeviceScreen
+import com.sunbay.softpos.ui.screens.SecurityScreen
+import com.sunbay.softpos.ui.screens.TransactionScreen
 import com.sunbay.softpos.ui.theme.SunbaySoftPOSTheme
-import kotlinx.coroutines.launch
+import com.sunbay.softpos.ui.theme.SunmiBlack
+import com.sunbay.softpos.ui.theme.SunmiOrange
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val deviceManager = DeviceManager(this)
         val threatReporter = ThreatReporter(this)
+        val transactionTokenManager = TransactionTokenManager(this)
         
         // Load saved device ID if exists
         val savedDeviceId = deviceManager.getSavedDeviceId()
@@ -58,231 +77,212 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             SunbaySoftPOSTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    RegistrationScreen(deviceManager, threatReporter)
-                }
+                MainScreen(deviceManager, threatReporter, transactionTokenManager)
             }
         }
     }
 }
 
+// Shared state class for all tabs - Refactored to be reactive
+class AppState {
+    var status by mutableStateOf("Ready")
+    var baseUrl by mutableStateOf("http://10.23.10.54:8080/")
+    var detailedInfo by mutableStateOf("")
+    var inputLogs by mutableStateOf("")
+    var outputLogs by mutableStateOf("")
+    var transactionAmount by mutableStateOf("10000")
+    var cardNumber by mutableStateOf("6222021234567890")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RegistrationScreen(deviceManager: DeviceManager, threatReporter: ThreatReporter) {
-    var status by remember { mutableStateOf("Ready") }
-    var baseUrl by remember { mutableStateOf("http://10.23.10.54:8080/") }
-    var detailedInfo by remember { mutableStateOf("") }
-    var inputLogs by remember { mutableStateOf("") }
-    var outputLogs by remember { mutableStateOf("") }
+fun MainScreen(
+    deviceManager: DeviceManager, 
+    threatReporter: ThreatReporter,
+    transactionTokenManager: TransactionTokenManager
+) {
+    var selectedTab by remember { mutableStateOf(0) }
+    val appState = remember { AppState() }
     val scope = rememberCoroutineScope()
+    var showUrlDialog by remember { mutableStateOf(false) }
+    
+    if (showUrlDialog) {
+        var tempUrl by remember { mutableStateOf(appState.baseUrl) }
+        AlertDialog(
+            onDismissRequest = { showUrlDialog = false },
+            title = { Text("设置服务器地址", fontSize = 12.sp) },
+            text = {
+                TextField(
+                    value = tempUrl,
+                    onValueChange = { tempUrl = it },
+                    label = { Text("Base URL", fontSize = 12.sp) }
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    appState.baseUrl = tempUrl
+                    showUrlDialog = false
+                }) {
+                    Text("确定", fontSize = 12.sp)
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showUrlDialog = false }) {
+                    Text("取消", fontSize = 12.sp)
+                }
+            }
+        )
+    }
+    
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { 
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { showUrlDialog = true }
+                    ) {
+                        Text(
+                            text = appState.baseUrl,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Normal
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit URL",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = SunmiOrange,
+                    titleContentColor = Color.White
+                )
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "设备管理") },
+                    label = { Text("设备管理") },
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Filled.Lock, contentDescription = "安全检测") },
+                    label = { Text("安全检测") },
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = "交易处理") },
+                    label = { Text("交易处理") },
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 }
+                )
+            }
+        }
+    ) { innerPadding ->
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // Left Side: Content Area (Operations)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                when (selectedTab) {
+                    0 -> DeviceScreen(deviceManager, threatReporter, appState, scope)
+                    1 -> SecurityScreen(threatReporter, appState, scope)
+                    2 -> TransactionScreen(deviceManager, transactionTokenManager, appState, scope)
+                }
+            }
+            
+            // Right Side: Logs Section
+            LogsSection(appState)
+        }
+    }
+}
 
+@Composable
+fun LogsSection(appState: AppState) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .padding(16.dp)
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .fillMaxWidth(0.5f)
+            .fillMaxHeight()
+            .background(SunmiBlack)
+            .padding(8.dp)
     ) {
         Text(
-            text = "Sunbay SoftPOS Demo",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary,
+            text = "通信日志",
+            fontSize = 12.sp,
+            color = Color.White,
             fontWeight = FontWeight.Bold
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        OutlinedTextField(
-            value = baseUrl,
-            onValueChange = { baseUrl = it },
-            label = { Text("Backend URL") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        status = "Checking health..."
-                        inputLogs = ""
-                        outputLogs = ""
-                        val result = deviceManager.healthCheck(baseUrl) { log ->
-                            if (log.type == "REQUEST") {
-                                inputLogs += log.toDisplayString()
-                            } else {
-                                outputLogs += log.toDisplayString()
-                            }
-                        }
-                        status = if (result.isSuccess) "Health Check OK" else "Health Check Failed"
-                        detailedInfo = result.getOrElse { it.message ?: "Unknown Error" }
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Health Check")
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Button(
-                onClick = {
-                    scope.launch {
-                        status = "Registering..."
-                        inputLogs = ""
-                        outputLogs = ""
-                        val result = deviceManager.registerDevice(baseUrl) { log ->
-                            if (log.type == "REQUEST") {
-                                inputLogs += log.toDisplayString()
-                            } else {
-                                outputLogs += log.toDisplayString()
-                            }
-                        }
-                        status = if (result.isSuccess) {
-                            // Extract device ID from response and set it for threat reporter
-                            val responseText = result.getOrNull() ?: ""
-                            // Try to extract device_id from response
-                            val deviceIdRegex = "\"device_id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-                            val deviceId = deviceIdRegex.find(responseText)?.groupValues?.get(1)
-                            if (deviceId != null) {
-                                threatReporter.setDeviceId(deviceId)
-                            }
-                            "Registration Successful"
-                        } else {
-                            "Registration Failed"
-                        }
-                        detailedInfo = result.getOrElse { it.message ?: "Unknown Error" }
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Register Device")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Threat Scanning Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Button(
-                onClick = {
-                    scope.launch {
-                        status = "Scanning for threats..."
-                        inputLogs = ""
-                        outputLogs = ""
-                        val result = threatReporter.scanAndReportThreats(baseUrl) { log ->
-                            if (log.type == "REQUEST") {
-                                inputLogs += log.toDisplayString()
-                            } else {
-                                outputLogs += log.toDisplayString()
-                            }
-                        }
-                        status = if (result.isSuccess) "Threat Scan Complete" else "Threat Scan Failed"
-                        detailedInfo = result.getOrNull()?.joinToString("\n") ?: result.exceptionOrNull()?.message ?: "Unknown Error"
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Scan Threats")
-            }
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Button(
-                onClick = {
-                    val threatStatus = threatReporter.getThreatStatus()
-                    val pendingCount = threatReporter.getPendingThreatsCount()
-                    status = "Threat Status"
-                    detailedInfo = "$threatStatus\nPending reports: $pendingCount"
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Threat Status")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "Status: $status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                if (detailedInfo.isNotEmpty()) {
-                    Text(
-                        text = detailedInfo,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (status.contains("Failed")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Input Logs Section
-        Text(
-            text = "Log Input",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.align(Alignment.Start),
-            color = MaterialTheme.colorScheme.primary
-        )
         Spacer(modifier = Modifier.height(8.dp))
         
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .background(Color(0xFF2B2B2B), shape = RoundedCornerShape(8.dp))
-                .padding(12.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+        // Input Logs (Top)
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = inputLogs.ifEmpty { "No input logs..." },
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = Color(0xFFFFAA00) // Orange color for input logs
-                )
+                text = "请求 ▶",
+                fontSize = 12.sp,
+                color = Color(0xFFFFAA00),
+                fontWeight = FontWeight.Bold
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF222222), shape = RoundedCornerShape(4.dp))
+                    .padding(4.dp)
+            ) {
+                Text(
+                    text = appState.inputLogs.ifEmpty { "暂无请求..." },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = Color(0xFFFFAA00)
+                    ),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                )
+            }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Output Logs Section
-        Text(
-            text = "Log Output",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.align(Alignment.Start),
-            color = MaterialTheme.colorScheme.primary
-        )
         Spacer(modifier = Modifier.height(8.dp))
         
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .background(Color(0xFF2B2B2B), shape = RoundedCornerShape(8.dp))
-                .padding(12.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
+        // Output Logs (Bottom)
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = outputLogs.ifEmpty { "No output logs..." },
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = Color(0xFF00FF00) // Green color for output logs
-                )
+                text = "◀ 响应",
+                fontSize = 12.sp,
+                color = Color(0xFF00FF00),
+                fontWeight = FontWeight.Bold
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF222222), shape = RoundedCornerShape(4.dp))
+                    .padding(4.dp)
+            ) {
+                Text(
+                    text = appState.outputLogs.ifEmpty { "暂无响应..." },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp,
+                        color = Color(0xFF00FF00)
+                    ),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                )
+            }
         }
     }
 }

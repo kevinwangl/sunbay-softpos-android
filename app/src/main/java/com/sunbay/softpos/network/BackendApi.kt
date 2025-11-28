@@ -48,6 +48,50 @@ data class ThreatData(
     val detectedAt: String
 )
 
+// 交易鉴证请求
+data class TransactionAttestRequest(
+    val device_id: String,
+    val amount: Long,
+    val currency: String,
+    val health_check: HealthCheckData
+)
+
+// 健康检查数据
+data class HealthCheckData(
+    val root_status: Boolean,
+    val debug_status: Boolean,
+    val hook_status: Boolean,
+    val emulator_status: Boolean,
+    val tee_status: Boolean,
+    val system_integrity: Boolean,
+    val app_integrity: Boolean
+)
+
+// 交易鉴证响应
+data class TransactionAttestResponse(
+    val transaction_token: String,
+    val expires_at: String,
+    val device_status: String,
+    val security_score: Int
+)
+
+// 交易处理请求
+data class ProcessTransactionRequest(
+    val transaction_token: String,
+    val encrypted_pin_block: String,
+    val ksn: String,
+    val card_number: String,
+    val amount: Long,
+    val currency: String
+)
+
+// 交易处理响应
+data class ProcessTransactionResponse(
+    val transaction_id: String,
+    val status: String,
+    val processed_at: String
+)
+
 interface BackendApi {
     @POST("/api/v1/devices/register")
     suspend fun registerDevice(@Body request: DeviceRegistrationRequest): Response<DeviceRegistrationResponse>
@@ -57,4 +101,10 @@ interface BackendApi {
     
     @POST("/api/v1/threats/report")
     suspend fun reportThreat(@Body request: ThreatReportRequest): Response<ThreatReportResponse>
+    
+    @POST("/api/v1/transactions/attest")
+    suspend fun attestTransaction(@Body request: TransactionAttestRequest): Response<TransactionAttestResponse>
+    
+    @POST("/api/v1/transactions/process")
+    suspend fun processTransaction(@Body request: ProcessTransactionRequest): Response<ProcessTransactionResponse>
 }

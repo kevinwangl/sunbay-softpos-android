@@ -177,4 +177,174 @@ class DeviceManager(private val context: Context) {
             }
         }
     }
+
+    suspend fun login(baseUrl: String, onLog: (ApiLog) -> Unit): Result<String> {
+        // Placeholder for login implementation
+        // In a real app, this would take credentials and call /auth/login
+        // For this demo, we'll simulate a successful login or call a mock endpoint if available
+        return withContext(Dispatchers.IO) {
+             try {
+                val startTime = System.currentTimeMillis()
+                val url = "${baseUrl}api/v1/auth/login"
+                
+                // Mock login request
+                val requestBody = mapOf("username" to "demo_user", "password" to "demo_pass")
+
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "REQUEST",
+                    method = "POST",
+                    url = url,
+                    body = gson.toJson(requestBody)
+                ))
+
+                // TODO: Implement actual network call when API is ready
+                // For now, we simulate a network delay and success
+                kotlinx.coroutines.delay(500)
+                
+                val duration = System.currentTimeMillis() - startTime
+                
+                val responseBody = mapOf("token" to "mock_token_12345", "user" to "demo_user")
+                
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "RESPONSE",
+                    method = "POST",
+                    url = url,
+                    body = gson.toJson(responseBody),
+                    statusCode = 200,
+                    duration = duration
+                ))
+
+                Result.success("Login Successful\nToken: mock_token_12345")
+            } catch (e: Exception) {
+                 Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun logout(baseUrl: String, onLog: (ApiLog) -> Unit): Result<String> {
+         return withContext(Dispatchers.IO) {
+             try {
+                val startTime = System.currentTimeMillis()
+                val url = "${baseUrl}api/v1/auth/logout"
+                
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "REQUEST",
+                    method = "POST",
+                    url = url
+                ))
+
+                // TODO: Implement actual network call
+                kotlinx.coroutines.delay(300)
+                
+                val duration = System.currentTimeMillis() - startTime
+                
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "RESPONSE",
+                    method = "POST",
+                    url = url,
+                    body = "{\"message\": \"Logged out successfully\"}",
+                    statusCode = 200,
+                    duration = duration
+                ))
+
+                Result.success("Logout Successful")
+            } catch (e: Exception) {
+                 Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun injectKey(baseUrl: String, onLog: (ApiLog) -> Unit): Result<String> {
+        return withContext(Dispatchers.IO) {
+             try {
+                val startTime = System.currentTimeMillis()
+                val url = "${baseUrl}api/v1/keys/inject"
+                
+                val deviceId = getSavedDeviceId() ?: return@withContext Result.failure(Exception("Device ID not found"))
+                val requestBody = mapOf("device_id" to deviceId)
+
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "REQUEST",
+                    method = "POST",
+                    url = url,
+                    body = gson.toJson(requestBody)
+                ))
+
+                // TODO: Implement actual network call
+                kotlinx.coroutines.delay(800)
+                
+                val duration = System.currentTimeMillis() - startTime
+                
+                val responseBody = mapOf("status" to "success", "key_type" to "TMK", "kcv" to "A1B2C3")
+
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "RESPONSE",
+                    method = "POST",
+                    url = url,
+                    body = gson.toJson(responseBody),
+                    statusCode = 200,
+                    duration = duration
+                ))
+
+                Result.success("Key Injection Successful\nType: TMK\nKCV: A1B2C3")
+            } catch (e: Exception) {
+                 Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun attestPinpad(baseUrl: String, onLog: (ApiLog) -> Unit): Result<String> {
+        return withContext(Dispatchers.IO) {
+             try {
+                val startTime = System.currentTimeMillis()
+                val url = "${baseUrl}api/v1/pinpad/attest"
+                
+                val deviceId = getSavedDeviceId() ?: return@withContext Result.failure(Exception("Device ID not found"))
+                 // Get real device information
+                val deviceInfoHelper = DeviceInfoHelper(context)
+                val deviceInfo = deviceInfoHelper.getDeviceInfo()
+                
+                val requestBody = mapOf(
+                    "device_id" to deviceId,
+                    "tee_type" to deviceInfo.teeType,
+                    "attestation_data" to "mock_attestation_blob"
+                )
+
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "REQUEST",
+                    method = "POST",
+                    url = url,
+                    body = gson.toJson(requestBody)
+                ))
+
+                // TODO: Implement actual network call
+                kotlinx.coroutines.delay(600)
+                
+                val duration = System.currentTimeMillis() - startTime
+                
+                val responseBody = mapOf("verified" to true, "attestation_status" to "VALID")
+
+                onLog(ApiLog(
+                    timestamp = dateFormat.format(Date()),
+                    type = "RESPONSE",
+                    method = "POST",
+                    url = url,
+                    body = gson.toJson(responseBody),
+                    statusCode = 200,
+                    duration = duration
+                ))
+
+                Result.success("PinPad Attestation Successful\nStatus: VALID")
+            } catch (e: Exception) {
+                 Result.failure(e)
+            }
+        }
+    }
 }
