@@ -21,7 +21,8 @@ class DeviceInfoHelper(private val context: Context) {
             osVersion = getOsVersion(),
             teeType = detectTeeType(),
             manufacturer = getManufacturer(),
-            sdkVersion = Build.VERSION.SDK_INT
+            sdkVersion = Build.VERSION.SDK_INT,
+            nfcPresent = hasNfcSupport()
         )
     }
     
@@ -138,6 +139,12 @@ class DeviceInfoHelper(private val context: Context) {
             false
         }
     }
+    /**
+     * Check if device supports NFC
+     */
+    private fun hasNfcSupport(): Boolean {
+        return context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_NFC)
+    }
 }
 
 /**
@@ -150,5 +157,6 @@ data class DeviceInfo(
     val osVersion: String,
     val teeType: String,
     val manufacturer: String,
-    val sdkVersion: Int
+    val sdkVersion: Int,
+    val nfcPresent: Boolean
 )

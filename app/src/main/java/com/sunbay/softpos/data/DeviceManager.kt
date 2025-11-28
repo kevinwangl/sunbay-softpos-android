@@ -116,7 +116,8 @@ class DeviceManager(private val context: Context) {
                     os_version = deviceInfo.osVersion,
                     tee_type = deviceInfo.teeType,
                     public_key = publicKey,
-                    device_mode = "FULL_POS"
+                    device_mode = "FULL_POS",
+                    nfc_present = deviceInfo.nfcPresent
                 )
                 
                 val url = "${baseUrl}api/v1/devices/register"

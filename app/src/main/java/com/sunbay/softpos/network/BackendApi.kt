@@ -11,7 +11,8 @@ data class DeviceRegistrationRequest(
     val os_version: String,
     val tee_type: String,
     val public_key: String,
-    val device_mode: String
+    val device_mode: String,
+    val nfc_present: Boolean
 )
 
 data class DeviceRegistrationResponse(
