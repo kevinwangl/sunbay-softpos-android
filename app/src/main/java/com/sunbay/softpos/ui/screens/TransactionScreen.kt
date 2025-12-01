@@ -118,13 +118,20 @@ fun TransactionScreen(
                         }
                         1 -> { // 交易处理
                             scope.launch {
+                                val deviceId = deviceManager.getSavedDeviceId()
+                                if (deviceId == null) {
+                                    appState.status = "✗ 错误"
+                                    appState.detailedInfo = "请先在设备管理页面注册设备"
+                                    return@launch
+                                }
+                                
                                 appState.status = "交易处理中..."
                                 appState.inputLogs = ""
                                 appState.outputLogs = ""
                                 
                                 val amount = appState.transactionAmount.toLongOrNull() ?: 10000L
                                 val result = transactionTokenManager.processTransaction(
-                                    appState.baseUrl, appState.cardNumber, amount, "CNY"
+                                    appState.baseUrl, deviceId, appState.cardNumber, amount, "CNY"
                                 ) { log ->
                                     if (log.type == "REQUEST") {
                                         appState.inputLogs += log.toDisplayString()

@@ -7,6 +7,7 @@ import com.sunbay.softpos.network.NetworkModule
 import com.sunbay.softpos.network.TransactionAttestRequest
 import com.sunbay.softpos.network.ProcessTransactionRequest
 import com.sunbay.softpos.security.ThreatDetector
+import com.sunbay.softpos.utils.FileLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -85,19 +86,18 @@ class TransactionTokenManager(private val context: Context) {
             try {
                 val startTime = System.currentTimeMillis()
                 
-                // 收集设备健康状态
-                val threatDetector = ThreatDetector(context)
-                val healthStatus = threatDetector.performHealthCheck()
+                FileLogger.i(TAG, "========== 开始交易鉴证 ==========")
+                FileLogger.i(TAG, "设备ID: $deviceId, 金额: $amount, 币种: $currency")
                 
-                // 构建鉴证请求
+                // 构建鉴证请求（后端不需要 health_check 字段）
                 val request = TransactionAttestRequest(
                     device_id = deviceId,
                     amount = amount,
-                    currency = currency,
-                    health_check = healthStatus
+                    currency = currency
                 )
                 
                 val url = "${baseUrl}api/v1/transactions/attest"
+                val requestBody = gson.toJson(request)
                 
                 // 记录请求日志
                 onLog(ApiLog(
@@ -108,6 +108,7 @@ class TransactionTokenManager(private val context: Context) {
                     body = gson.toJson(request)
                 ))
                 
+                FileLogger.logHttpRequest("POST", url, body = requestBody)
                 Log.d(TAG, "Requesting transaction attestation for device: $deviceId, amount: $amount")
                 
                 val api = NetworkModule.getApi(baseUrl)
@@ -116,15 +117,21 @@ class TransactionTokenManager(private val context: Context) {
                 
                 // 记录响应日志
                 val responseBody = response.body()
+                val responseBodyJson = gson.toJson(responseBody)
+                val statusCode = response.code()
+                
                 onLog(ApiLog(
                     timestamp = dateFormat.format(Date()),
                     type = "RESPONSE",
                     method = "POST",
                     url = url,
-                    body = gson.toJson(responseBody),
-                    statusCode = response.code(),
+                    body = responseBodyJson,
+                    statusCode = statusCode,
                     duration = duration
                 ))
+                
+                FileLogger.logHttpResponse(statusCode, url, body = responseBodyJson, duration = duration)
+                FileLogger.i(TAG, "响应状态码: $statusCode")
                 
                 if (response.isSuccessful && responseBody != null) {
                     // 保存交易令牌
@@ -145,14 +152,24 @@ class TransactionTokenManager(private val context: Context) {
                     }
                     
                     Log.i(TAG, "Transaction attestation successful, token expires at: ${responseBody.expires_at}")
+                    FileLogger.i(TAG, "交易鉴证成功: token=${responseBody.transaction_token.take(20)}..., expires_at=${responseBody.expires_at}")
+                    FileLogger.i(TAG, "========== 交易鉴证完成 ==========")
                     Result.success(resultMessage)
                 } else {
                     val errorBody = response.errorBody()?.string()
                     Log.e(TAG, "Attestation failed: ${response.code()} $errorBody")
+                    
+                    FileLogger.logErrorResponse(statusCode, url, errorBody)
+                    FileLogger.e(TAG, "交易鉴证失败: code=$statusCode, error=$errorBody")
+                    FileLogger.i(TAG, "========== 交易鉴证失败 ==========")
+                    
                     Result.failure(Exception("鉴证失败: ${response.code()} - $errorBody"))
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error during transaction attestation", e)
+                FileLogger.e(TAG, "交易鉴证异常", e)
+                FileLogger.i(TAG, "========== 交易鉴证异常 ==========")
+                
                 onLog(ApiLog(
                     timestamp = dateFormat.format(Date()),
                     type = "ERROR",
@@ -175,6 +192,7 @@ class TransactionTokenManager(private val context: Context) {
      */
     suspend fun processTransaction(
         baseUrl: String,
+        deviceId: String,
         cardNumber: String,
         amount: Long,
         currency: String = "CNY",
@@ -192,18 +210,34 @@ class TransactionTokenManager(private val context: Context) {
                 
                 val startTime = System.currentTimeMillis()
                 
-                // 模拟加密的PIN块和KSN（实际应用中应该使用真实的加密）
+                // 获取设备的真实 KSN
+                val deviceManager = DeviceManager(context)
+                val ksn = deviceManager.getKsn() ?: run {
+                    return@withContext Result.failure(
+                        Exception("❌ 设备未注册或未注入密钥，无法获取 KSN")
+                    )
+                }
+                
+                // 模拟加密的PIN块（实际应用中应该使用真实的加密）
                 val encryptedPinBlock = "SIMULATED_ENCRYPTED_PIN_BLOCK_${System.currentTimeMillis()}"
-                val ksn = "FFFF9876543210E00001"
+                
+                // 掩码卡号（只显示前6位和后4位）
+                val maskedCardNumber = if (cardNumber.length >= 10) {
+                    "${cardNumber.substring(0, 6)}****${cardNumber.substring(cardNumber.length - 4)}"
+                } else {
+                    cardNumber
+                }
                 
                 // 构建交易请求
                 val request = ProcessTransactionRequest(
-                    transaction_token = transactionToken,
+                    device_id = deviceId,
+                    transaction_type = "PAYMENT",
+                    amount = amount,
+                    currency = currency,
                     encrypted_pin_block = encryptedPinBlock,
                     ksn = ksn,
-                    card_number = cardNumber,
-                    amount = amount,
-                    currency = currency
+                    card_number_masked = maskedCardNumber,
+                    transaction_token = transactionToken
                 )
                 
                 val url = "${baseUrl}api/v1/transactions/process"
@@ -313,7 +347,7 @@ class TransactionTokenManager(private val context: Context) {
                 
                 // 步骤2：交易处理
                 results.add("=== 步骤2：交易处理 ===")
-                val processResult = processTransaction(baseUrl, cardNumber, amount, currency, onLog)
+                val processResult = processTransaction(baseUrl, deviceId, cardNumber, amount, currency, onLog)
                 
                 if (processResult.isFailure) {
                     return@withContext Result.failure(

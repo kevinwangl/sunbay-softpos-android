@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.sunbay.softpos.network.DeviceRegistrationRequest
 import com.sunbay.softpos.network.NetworkModule
+import com.sunbay.softpos.utils.FileLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -20,6 +21,7 @@ class DeviceManager(private val context: Context) {
     companion object {
         private const val KEY_DEVICE_ID = "device_id"
         private const val KEY_IMEI = "imei"
+        private const val KEY_KSN = "ksn"
     }
     
     /**
@@ -34,6 +36,24 @@ class DeviceManager(private val context: Context) {
      */
     fun getSavedImei(): String? {
         return prefs.getString(KEY_IMEI, null)
+    }
+    
+    /**
+     * Get the saved KSN (Key Serial Number)
+     */
+    fun getKsn(): String? {
+        return prefs.getString(KEY_KSN, null)
+    }
+    
+    /**
+     * Save KSN after key injection
+     */
+    private fun saveKsn(ksn: String) {
+        prefs.edit().apply {
+            putString(KEY_KSN, ksn)
+            apply()
+        }
+        Log.d("DeviceManager", "Saved KSN: $ksn")
     }
     
     /**
@@ -102,9 +122,13 @@ class DeviceManager(private val context: Context) {
             try {
                 val startTime = System.currentTimeMillis()
                 
+                FileLogger.i("DeviceManager", "========== 开始设备注册 ==========")
+                
                 // Get real device information
                 val deviceInfoHelper = DeviceInfoHelper(context)
                 val deviceInfo = deviceInfoHelper.getDeviceInfo()
+                
+                FileLogger.d("DeviceManager", "设备信息: IMEI=${deviceInfo.imei}, Model=${deviceInfo.model}")
                 
                 // Get or create RSA key pair
                 val keyManager = com.sunbay.softpos.security.KeyManager(context)
@@ -121,6 +145,7 @@ class DeviceManager(private val context: Context) {
                 )
                 
                 val url = "${baseUrl}api/v1/devices/register"
+                val requestBody = gson.toJson(request)
                 
                 // Log request
                 onLog(ApiLog(
@@ -128,45 +153,72 @@ class DeviceManager(private val context: Context) {
                     type = "REQUEST",
                     method = "POST",
                     url = url,
-                    body = gson.toJson(request)
+                    body = requestBody
                 ))
                 
+                FileLogger.logHttpRequest("POST", url, body = requestBody)
                 Log.d("DeviceManager", "Registering device to $baseUrl: $request")
+                
                 val api = NetworkModule.getApi(baseUrl)
                 val response = api.registerDevice(request)
                 val duration = System.currentTimeMillis() - startTime
                 
                 // Log response
                 val responseBody = response.body()
+                val responseBodyJson = gson.toJson(responseBody)
+                val statusCode = response.code()
+                
                 onLog(ApiLog(
                     timestamp = dateFormat.format(Date()),
                     type = "RESPONSE",
                     method = "POST",
                     url = url,
-                    body = gson.toJson(responseBody),
-                    statusCode = response.code(),
+                    body = responseBodyJson,
+                    statusCode = statusCode,
                     duration = duration
                 ))
                 
+                FileLogger.logHttpResponse(statusCode, url, body = responseBodyJson, duration = duration)
+                FileLogger.i("DeviceManager", "响应状态码: $statusCode")
+                
                 if (response.isSuccessful && responseBody?.code == 201) {
-                    // Extract and save device_id from response
+                    // Extract and save device_id and ksn from response
                     val dataJson = gson.toJson(responseBody.data)
                     val deviceIdRegex = "\"device_id\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    val ksnRegex = "\"ksn\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+                    
                     val deviceId = deviceIdRegex.find(dataJson)?.groupValues?.get(1)
+                    val ksn = ksnRegex.find(dataJson)?.groupValues?.get(1)
                     
                     if (deviceId != null) {
                         saveDeviceInfo(deviceId, deviceInfo.imei)
                         Log.i("DeviceManager", "Device registered successfully with ID: $deviceId")
                     }
                     
+                    if (ksn != null) {
+                        saveKsn(ksn)
+                        Log.i("DeviceManager", "KSN saved: $ksn")
+                        FileLogger.i("DeviceManager", "KSN 已保存: $ksn")
+                    }
+                    
+                    FileLogger.i("DeviceManager", "设备注册成功: device_id=$deviceId, ksn=$ksn")
+                    FileLogger.i("DeviceManager", "========== 设备注册完成 ==========")
                     Result.success("Success: ${responseBody.message}\nData: $dataJson")
                 } else {
                     val errorBody = response.errorBody()?.string()
                     Log.e("DeviceManager", "Registration failed: ${response.code()} $errorBody")
+                    
+                    FileLogger.logErrorResponse(statusCode, url, errorBody)
+                    FileLogger.e("DeviceManager", "设备注册失败: code=${response.code()}, message=${responseBody?.message}, error=$errorBody")
+                    FileLogger.i("DeviceManager", "========== 设备注册失败 ==========")
+                    
                     Result.failure(Exception("Registration failed: ${response.code()} - ${responseBody?.message ?: errorBody ?: "Unknown"}"))
                 }
             } catch (e: Exception) {
                 Log.e("DeviceManager", "Error registering device", e)
+                FileLogger.e("DeviceManager", "设备注册异常", e)
+                FileLogger.i("DeviceManager", "========== 设备注册异常 ==========")
+                
                 onLog(ApiLog(
                     timestamp = dateFormat.format(Date()),
                     type = "ERROR",
@@ -266,6 +318,13 @@ class DeviceManager(private val context: Context) {
                 val url = "${baseUrl}api/v1/keys/inject"
                 
                 val deviceId = getSavedDeviceId() ?: return@withContext Result.failure(Exception("Device ID not found"))
+                
+                // 检查是否已有 KSN（从注册时获得）
+                val existingKsn = getKsn()
+                if (existingKsn == null) {
+                    return@withContext Result.failure(Exception("KSN not found. Please register device first."))
+                }
+                
                 val requestBody = mapOf("device_id" to deviceId)
 
                 onLog(ApiLog(
@@ -277,11 +336,21 @@ class DeviceManager(private val context: Context) {
                 ))
 
                 // TODO: Implement actual network call
+                // 在实际实现中，后端会使用注册时生成的 KSN 来派生 IPEK
+                // 并返回加密的 IPEK 和 KSN
                 kotlinx.coroutines.delay(800)
                 
                 val duration = System.currentTimeMillis() - startTime
                 
-                val responseBody = mapOf("status" to "success", "key_type" to "TMK", "kcv" to "A1B2C3")
+                // 使用已保存的 KSN（从注册响应中获得）
+                // 在实际实现中，后端会返回加密的 IPEK
+                val responseBody = mapOf(
+                    "status" to "success", 
+                    "key_type" to "TMK", 
+                    "kcv" to "A1B2C3", 
+                    "ksn" to existingKsn,
+                    "encrypted_ipek" to "MOCK_ENCRYPTED_IPEK_BASE64"
+                )
 
                 onLog(ApiLog(
                     timestamp = dateFormat.format(Date()),
@@ -293,7 +362,7 @@ class DeviceManager(private val context: Context) {
                     duration = duration
                 ))
 
-                Result.success("Key Injection Successful\nType: TMK\nKCV: A1B2C3")
+                Result.success("Key Injection Successful\nType: TMK\nKCV: A1B2C3\nKSN: $existingKsn")
             } catch (e: Exception) {
                  Result.failure(e)
             }

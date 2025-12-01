@@ -60,10 +60,17 @@ import com.sunbay.softpos.ui.screens.TransactionScreen
 import com.sunbay.softpos.ui.theme.SunbaySoftPOSTheme
 import com.sunbay.softpos.ui.theme.SunmiBlack
 import com.sunbay.softpos.ui.theme.SunmiOrange
+import com.sunbay.softpos.utils.FileLogger
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 初始化文件日志
+        FileLogger.init(this)
+        FileLogger.i("MainActivity", "Application started")
+        FileLogger.i("MainActivity", "Log file: ${FileLogger.getCurrentLogPath()}")
+        
         val deviceManager = DeviceManager(this)
         val threatReporter = ThreatReporter(this)
         val transactionTokenManager = TransactionTokenManager(this)

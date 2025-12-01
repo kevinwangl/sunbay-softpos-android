@@ -1,5 +1,6 @@
 package com.sunbay.softpos.network
 
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -51,21 +52,10 @@ data class ThreatData(
 
 // 交易鉴证请求
 data class TransactionAttestRequest(
+    @SerializedName("deviceId")
     val device_id: String,
     val amount: Long,
-    val currency: String,
-    val health_check: HealthCheckData
-)
-
-// 健康检查数据
-data class HealthCheckData(
-    val root_status: Boolean,
-    val debug_status: Boolean,
-    val hook_status: Boolean,
-    val emulator_status: Boolean,
-    val tee_status: Boolean,
-    val system_integrity: Boolean,
-    val app_integrity: Boolean
+    val currency: String
 )
 
 // 交易鉴证响应
@@ -78,12 +68,19 @@ data class TransactionAttestResponse(
 
 // 交易处理请求
 data class ProcessTransactionRequest(
-    val transaction_token: String,
+    @SerializedName("deviceId")
+    val device_id: String,
+    @SerializedName("transactionType")
+    val transaction_type: String,
+    val amount: Long,
+    val currency: String,
+    @SerializedName("encryptedPinBlock")
     val encrypted_pin_block: String,
     val ksn: String,
-    val card_number: String,
-    val amount: Long,
-    val currency: String
+    @SerializedName("cardNumberMasked")
+    val card_number_masked: String?,
+    @SerializedName("transactionToken")
+    val transaction_token: String
 )
 
 // 交易处理响应

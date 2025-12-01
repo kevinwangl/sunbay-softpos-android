@@ -227,27 +227,4 @@ class ThreatDetector(private val context: Context) {
         return threats.maxByOrNull { it.severity.ordinal }
     }
     
-    /**
-     * Perform health check and return data for transaction attestation
-     */
-    fun performHealthCheck(): com.sunbay.softpos.network.HealthCheckData {
-        val threats = performThreatScan()
-        
-        // Find specific threat results
-        val rootThreat = threats.find { it.threatType == ThreatType.ROOT_DETECTION }
-        val debugThreat = threats.find { it.threatType == ThreatType.APP_TAMPER && it.description.contains("debug", ignoreCase = true) }
-        val emulatorThreat = threats.find { it.threatType == ThreatType.SYSTEM_TAMPER && it.description.contains("emulator", ignoreCase = true) }
-        val appTamperThreat = threats.find { it.threatType == ThreatType.APP_TAMPER && !it.description.contains("debug", ignoreCase = true) }
-        val bootloaderThreat = threats.find { it.threatType == ThreatType.BOOTLOADER_UNLOCK }
-        
-        return com.sunbay.softpos.network.HealthCheckData(
-            root_status = rootThreat?.detected ?: false,
-            debug_status = debugThreat?.detected ?: false,
-            hook_status = false, // Hook detection not implemented yet
-            emulator_status = emulatorThreat?.detected ?: false,
-            tee_status = true, // Assume TEE is available (would need actual check)
-            system_integrity = !(bootloaderThreat?.detected ?: false),
-            app_integrity = !(appTamperThreat?.detected ?: false)
-        )
-    }
 }
