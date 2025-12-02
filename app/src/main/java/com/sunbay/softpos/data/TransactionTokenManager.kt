@@ -228,6 +228,12 @@ class TransactionTokenManager(private val context: Context) {
                     cardNumber
                 }
                 
+                // 获取位置信息
+                val locationHelper = com.sunbay.softpos.utils.LocationHelper(context)
+                val (clientIp, locationData) = locationHelper.getFullLocationInfo()
+                
+                Log.d(TAG, "位置信息: IP=$clientIp, Location=$locationData")
+                
                 // 构建交易请求
                 val request = ProcessTransactionRequest(
                     device_id = deviceId,
@@ -237,7 +243,12 @@ class TransactionTokenManager(private val context: Context) {
                     encrypted_pin_block = encryptedPinBlock,
                     ksn = ksn,
                     card_number_masked = maskedCardNumber,
-                    transaction_token = transactionToken
+                    transaction_token = transactionToken,
+                    client_ip = clientIp,
+                    latitude = locationData?.latitude,
+                    longitude = locationData?.longitude,
+                    location_accuracy = locationData?.accuracy,
+                    location_timestamp = locationData?.timestamp
                 )
                 
                 val url = "${baseUrl}api/v1/transactions/process"

@@ -80,7 +80,15 @@ data class ProcessTransactionRequest(
     @SerializedName("cardNumberMasked")
     val card_number_masked: String?,
     @SerializedName("transactionToken")
-    val transaction_token: String
+    val transaction_token: String,
+    @SerializedName("clientIp")
+    val client_ip: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    @SerializedName("locationAccuracy")
+    val location_accuracy: Float? = null,
+    @SerializedName("locationTimestamp")
+    val location_timestamp: String? = null
 )
 
 // 交易处理响应

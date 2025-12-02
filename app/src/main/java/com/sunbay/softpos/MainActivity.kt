@@ -61,8 +61,17 @@ import com.sunbay.softpos.ui.theme.SunbaySoftPOSTheme
 import com.sunbay.softpos.ui.theme.SunmiBlack
 import com.sunbay.softpos.ui.theme.SunmiOrange
 import com.sunbay.softpos.utils.FileLogger
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
+    
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 1001
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -70,6 +79,9 @@ class MainActivity : ComponentActivity() {
         FileLogger.init(this)
         FileLogger.i("MainActivity", "Application started")
         FileLogger.i("MainActivity", "Log file: ${FileLogger.getCurrentLogPath()}")
+        
+        // 请求位置权限
+        requestLocationPermissionIfNeeded()
         
         val deviceManager = DeviceManager(this)
         val threatReporter = ThreatReporter(this)
@@ -85,6 +97,60 @@ class MainActivity : ComponentActivity() {
         setContent {
             SunbaySoftPOSTheme {
                 MainScreen(deviceManager, threatReporter, transactionTokenManager)
+            }
+        }
+    }
+    
+    /**
+     * 请求位置权限（如果需要）
+     */
+    private fun requestLocationPermissionIfNeeded() {
+        val fineLocationPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+        val coarseLocationPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        
+        if (fineLocationPermission != PackageManager.PERMISSION_GRANTED ||
+            coarseLocationPermission != PackageManager.PERMISSION_GRANTED) {
+            
+            Log.d("MainActivity", "请求位置权限")
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                LOCATION_PERMISSION_REQUEST_CODE
+            )
+        } else {
+            Log.d("MainActivity", "位置权限已授予")
+        }
+    }
+    
+    /**
+     * 处理权限请求结果
+     */
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        
+        when (requestCode) {
+            LOCATION_PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() && 
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d("MainActivity", "位置权限已授予")
+                    FileLogger.i("MainActivity", "位置权限已授予")
+                } else {
+                    Log.w("MainActivity", "位置权限被拒绝")
+                    FileLogger.w("MainActivity", "位置权限被拒绝 - 交易将不包含位置信息")
+                }
             }
         }
     }
