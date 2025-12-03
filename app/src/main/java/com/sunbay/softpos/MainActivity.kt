@@ -159,7 +159,7 @@ class MainActivity : ComponentActivity() {
 // Shared state class for all tabs - Refactored to be reactive
 class AppState {
     var status by mutableStateOf("Ready")
-    var baseUrl by mutableStateOf("http://10.23.10.54:8080/")
+    var baseUrl by mutableStateOf("http://10.162.24.174:8180/")
     var detailedInfo by mutableStateOf("")
     var inputLogs by mutableStateOf("")
     var outputLogs by mutableStateOf("")
